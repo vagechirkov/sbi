@@ -16,13 +16,6 @@ from sbi.simulators.linear_gaussian import (
 
 from .test_utils import check_c2st, get_dkl_gaussian_prior
 
-IID_METHODS = ["fnpe", "gauss", "auto_gauss", "jac_gauss"]
-NUM_DIM = [1, 2, 3]
-NUM_TRIAL = [1, 3, 8, 16]
-PRIOR_TYPE = ["gaussian", "uniform", None]
-SAMPLING_METHODS = ["sde", "ode"]
-SDE_TYPE = ["vp", "ve", "subvp"]
-
 
 @dataclass(frozen=True)
 class NpseTrainingTestCase:
@@ -115,85 +108,130 @@ class NpseSamplingTestCase:
         return f"{self.iid_method}-{self.sampling_method}-trials_{self.num_trials}"
 
 
-training_test_cases_gaussian = [
-    NpseTrainingTestCase(1, "gaussian", "vp"),
-    NpseTrainingTestCase(1, "gaussian", "ve"),
-    NpseTrainingTestCase(2, "gaussian", "ve"),
-    NpseTrainingTestCase(2, "gaussian", "vp"),
-    NpseTrainingTestCase(2, "gaussian", "subvp"),
-]
+class NpseTestCombinations:
+    IID_METHODS = ["fnpe", "gauss", "auto_gauss", "jac_gauss"]
+    NUM_DIM = [1, 2, 3]
+    NUM_TRIAL = [1, 3, 8, 16]
+    PRIOR_TYPE = ["gaussian", "uniform", None]
+    SAMPLING_METHODS = ["sde", "ode"]
+    SDE_TYPE = ["vp", "ve", "subvp"]
 
-training_test_cases_uniform = [
-    NpseTrainingTestCase(2, "uniform", "ve"),
-    NpseTrainingTestCase(2, "uniform", "vp"),
-    NpseTrainingTestCase(2, "uniform", "subvp"),
-    NpseTrainingTestCase(3, "uniform", "ve"),
-    NpseTrainingTestCase(3, "uniform", "vp"),
-    NpseTrainingTestCase(3, "uniform", "subvp"),
-]
+    @classmethod
+    def all_train_cases(cls) -> List[NpseTrainingTestCase]:
+        return [
+            NpseTrainingTestCase(num_dim, prior_type, sde_type)
+            for num_dim, prior_type, sde_type in product(
+                cls.NUM_DIM, cls.PRIOR_TYPE, cls.SDE_TYPE
+            )
+        ]
 
+    @classmethod
+    def all_sampling_cases(cls) -> List[NpseSamplingTestCase]:
+        return [
+            NpseSamplingTestCase(iid_method, sampling_method, num_trials)
+            for iid_method, sampling_method, num_trials in product(
+                cls.IID_METHODS, cls.SAMPLING_METHODS, cls.NUM_TRIAL
+            )
+        ]
 
-training_test_cases_all = training_test_cases_gaussian + training_test_cases_uniform
+    @classmethod
+    def all_combinations(
+        cls,
+    ) -> List[Tuple[NpseTrainingTestCase, NpseSamplingTestCase]]:
+        return list(product(cls.all_train_cases(), cls.all_sampling_cases()))
 
-sampling_test_cases_1_trial = [
-    NpseSamplingTestCase(iid, sampling, 1)
-    for iid, sampling in product(IID_METHODS, SAMPLING_METHODS)
-]
+    @classmethod
+    def gaussian_test_cases(cls):
+        return [
+            NpseTrainingTestCase(1, "gaussian", "vp"),
+            NpseTrainingTestCase(1, "gaussian", "ve"),
+            NpseTrainingTestCase(2, "gaussian", "ve"),
+            NpseTrainingTestCase(2, "gaussian", "vp"),
+            NpseTrainingTestCase(2, "gaussian", "subvp"),
+        ]
 
-sampling_test_cases_n_trials = [
-    NpseSamplingTestCase("fnpe", "sde", 3),
-    NpseSamplingTestCase("gauss", "sde", 3),
-    NpseSamplingTestCase("auto_gauss", "sde", 3),
-    NpseSamplingTestCase("jac_gauss", "sde", 3),
-    NpseSamplingTestCase("fnpe", "sde", 8),
-    NpseSamplingTestCase("gauss", "sde", 8),
-    NpseSamplingTestCase("auto_gauss", "sde", 8),
-    NpseSamplingTestCase("jac_gauss", "sde", 8),
-]
+    @classmethod
+    def uniform_test_cases(cls):
+        return [
+            NpseTrainingTestCase(2, "uniform", "ve"),
+            NpseTrainingTestCase(2, "uniform", "vp"),
+            NpseTrainingTestCase(2, "uniform", "subvp"),
+            NpseTrainingTestCase(3, "uniform", "ve"),
+            NpseTrainingTestCase(3, "uniform", "vp"),
+            NpseTrainingTestCase(3, "uniform", "subvp"),
+        ]
 
-sampling_test_cases_all = sampling_test_cases_1_trial + sampling_test_cases_n_trials
+    @classmethod
+    def sampling_test_cases_1_trial(cls):
+        return [
+            NpseSamplingTestCase(iid, sampling, 1)
+            for iid, sampling in product(cls.IID_METHODS, cls.SAMPLING_METHODS)
+        ]
 
+    @classmethod
+    def sampling_test_cases_n_trials(cls):
+        return [
+            NpseSamplingTestCase("fnpe", "sde", 3),
+            NpseSamplingTestCase("gauss", "sde", 3),
+            NpseSamplingTestCase("auto_gauss", "sde", 3),
+            NpseSamplingTestCase("jac_gauss", "sde", 3),
+            NpseSamplingTestCase("fnpe", "sde", 8),
+            NpseSamplingTestCase("gauss", "sde", 8),
+            NpseSamplingTestCase("auto_gauss", "sde", 8),
+            NpseSamplingTestCase("jac_gauss", "sde", 8),
+        ]
 
-def _get_regression_cases() -> List[Tuple[NpseTrainingTestCase, NpseSamplingTestCase]]:
-    """
-    # ToDO check if there is a bug for prior_type='uniform' and num_trial>1
-    # ToDO validate bug for combination sde_type='ode' and num_trial>1
-    # ToDO investigate non-determinism for prior_type=None, dim>= 2, ve, auto/jac_gauss
-    To make the regression tests run fast enough, we exclude certain combinations
-    :return: list of combinations of training and sampling test cases
-    """
-    all_train = [
-        NpseTrainingTestCase(num_dim, prior_type, sde_type)
-        for num_dim, prior_type, sde_type in product(NUM_DIM, PRIOR_TYPE, SDE_TYPE)
-    ]
-    all_sample = [
-        NpseSamplingTestCase(iid_method, sampling_method, num_trials)
-        for iid_method, sampling_method, num_trials in product(
-            IID_METHODS, SAMPLING_METHODS, NUM_TRIAL
+    @classmethod
+    def regression_combinations(
+        cls,
+    ) -> List[Tuple[NpseTrainingTestCase, NpseSamplingTestCase]]:
+        """
+        # ToDO check if there is a bug for prior_type='uniform' and num_trial>1
+        # ToDO validate bug for combination sde_type='ode' and num_trial>1
+        # ToDO investigate non-determinism for prior_type=None, dim>= 2, ve, a/j_gauss
+        To make the regression tests run fast enough, we exclude certain combinations
+        :return: list of combinations of training and sampling test cases
+        """
+
+        is_uniform = lambda t: t.prior_type == "uniform"
+        too_many_trial = lambda s: s.num_trials > 1
+        is_ode = lambda s: s.sampling_method == "ode"
+
+        is_non_deterministic = (
+            lambda t, s: t.prior_type is None
+            and t.sde_type == "ve"
+            and t.num_dim >= 2
+            and s.iid_method in {"auto_gauss", "jac_gauss"}
+            and s.num_trials >= 16
         )
-    ]
-    all_combinations = product(all_train, all_sample)
 
-    is_uniform = lambda t: t.prior_type == "uniform"
-    too_many_trial = lambda s: s.num_trials > 1
-    is_ode = lambda s: s.sampling_method == "ode"
+        exclude_cond = lambda t, s: (
+            (is_uniform(t) or is_ode(s)) and too_many_trial(s)
+        ) or is_non_deterministic(t, s)
+        combinations = []
+        for train_case, sampling_case in cls.all_combinations():
+            if not exclude_cond(train_case, sampling_case):
+                combinations.append((train_case, sampling_case))
+        return combinations
 
-    is_non_deterministic = (
-        lambda t, s: t.prior_type is None
-        and t.sde_type == "ve"
-        and t.num_dim >= 2
-        and s.iid_method in {"auto_gauss", "jac_gauss"}
-        and s.num_trials >= 16
-    )
+    @classmethod
+    def c2st_combinations(
+        cls,
+    ) -> List[Tuple[NpseTrainingTestCase, NpseSamplingTestCase]]:
+        return list(
+            product(
+                cls.gaussian_test_cases() + cls.uniform_test_cases(),
+                cls.sampling_test_cases_n_trials(),
+            )
+        )
 
-    exclude_cond = lambda t, s: (
-        (is_uniform(t) or is_ode(s)) and too_many_trial(s)
-    ) or is_non_deterministic(t, s)
-    combinations = []
-    for train_case, sampling_case in all_combinations:
-        if not exclude_cond(train_case, sampling_case):
-            combinations.append((train_case, sampling_case))
-    return combinations
+    @classmethod
+    def kld_combinations(
+        cls,
+    ) -> List[Tuple[NpseTrainingTestCase, NpseSamplingTestCase]]:
+        return list(
+            product(cls.gaussian_test_cases(), [NpseSamplingTestCase("fnpe", "sde", 1)])
+        )
 
 
 def _train_npse(
@@ -251,9 +289,11 @@ def npse_trained_model(request):
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    "npse_trained_model", training_test_cases_all, indirect=True, ids=str
+    "npse_trained_model, sampling_test_case",
+    NpseTestCombinations.c2st_combinations(),
+    indirect=["npse_trained_model"],
+    ids=str,
 )
-@pytest.mark.parametrize("sampling_test_case", sampling_test_cases_all, ids=str)
 def test_c2st(npse_trained_model, sampling_test_case: NpseSamplingTestCase):
     num_samples = 1_000
     inference, score_estimator, test_case = npse_trained_model
@@ -279,13 +319,16 @@ def test_c2st(npse_trained_model, sampling_test_case: NpseSamplingTestCase):
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    "npse_trained_model", training_test_cases_gaussian, indirect=True, ids=str
+    "npse_trained_model, sampling_test_case",
+    NpseTestCombinations.kld_combinations(),
+    indirect=["npse_trained_model"],
+    ids=str,
 )
-def test_kld_gaussian(npse_trained_model):
+def test_kld_gaussian(npse_trained_model, sampling_test_case: NpseSamplingTestCase):
     # For the Gaussian prior, we compute the KLd between ground truth and
     # posterior.
     inference, score_estimator, test_case = npse_trained_model
-    x_o = zeros(1, test_case.num_dim)
+    x_o = zeros(sampling_test_case.num_trials, test_case.num_dim)
     posterior = _build_posterior(inference, score_estimator, x_o)
     dkl = get_dkl_gaussian_prior(
         posterior,
@@ -323,7 +366,9 @@ def test_npse_map(npse_trained_model):
 
 
 @pytest.mark.parametrize(
-    "training_test_case, sampling_test_case", _get_regression_cases(), ids=str
+    "training_test_case, sampling_test_case",
+    NpseTestCombinations.regression_combinations(),
+    ids=str,
 )
 def test_npse_snapshot(
     sampling_test_case: NpseSamplingTestCase,
