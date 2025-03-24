@@ -233,6 +233,10 @@ class NpseTestCombinations:
             product(cls.gaussian_test_cases(), [NpseSamplingTestCase("fnpe", "sde", 1)])
         )
 
+    @classmethod
+    def map_combinations(cls):
+        return cls.kld_combinations()
+
 
 def _train_npse(
     test_case: NpseTrainingTestCase,
@@ -344,11 +348,14 @@ def test_kld_gaussian(npse_trained_model, sampling_test_case: NpseSamplingTestCa
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    "npse_trained_model", training_test_cases_gaussian, indirect=True, ids=str
+    "npse_trained_model, sampling_test_case",
+    NpseTestCombinations.map_combinations(),
+    indirect=["npse_trained_model"],
+    ids=str,
 )
-def test_npse_map(npse_trained_model):
+def test_npse_map(npse_trained_model, sampling_test_case):
     inference, score_estimator, test_case = npse_trained_model
-    x_o = zeros(1, test_case.num_dim)
+    x_o = zeros(sampling_test_case.num_trials, test_case.num_dim)
     gt_posterior = true_posterior_linear_gaussian_mvn_prior(
         x_o,
         test_case.likelihood_shift,
